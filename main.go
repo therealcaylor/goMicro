@@ -1,43 +1,50 @@
 package main
 
 import (
-	"fmt"
-	"io/ioutil"
+	"context"
+	"gomicro/handlers"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"time"
 )
 
 func main() {
-	//create a webserver --> http package
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("hello world")
-		d, err := ioutil.ReadAll(r.Body)
+	// we need to create a reference to our hello handler
+	l := log.New(os.Stdout, "product-api", log.LstdFlags)
+	hh := handlers.NewHello(l)
+	// now we need to register the handler to the serveMux
+	sm := http.NewServeMux()
+	sm.Handle("/", hh)
+	//* e dato che non vogliamo usare il defaultServeMux allora
+	//* dobbiamo specificare che vogliamo usare sm
+	// http.ListenAndServe(":9090", sm)
+	//* ci sono delle cose come il timeout che dobbiamo gestire
+	//* in modo da poter avere una performance migliore
+	//* per una cosa piu specifica é meglio creare il proprio server
+	s := &http.Server{
+		Addr:         ":9090",
+		Handler:      sm,
+		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: 1 * time.Second,
+	}
+	go func() {
+		err := s.ListenAndServe()
 		if err != nil {
-			//* per rispondere con un errore avrei potuto usare
-			//* questi comandi
-			// w.WriteHeader(http.StatusBadRequest)
-			// w.Write([]byte("opps"))
-			//* ma il pachetto http ha il metodo Error che mi permette di
-			//* fare tutto in una sola riga di codice
-			http.Error(w, "oops", http.StatusBadRequest)
-			return
+			l.Fatal(err)
 		}
-		fmt.Fprintf(w, "hello: %s\n", d)
-	})
-	http.HandleFunc("/ciao", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("ciao amici!!!!!!")
-	})
-	http.ListenAndServe(":9090", nil)
+	}()
+
+	//* graceful shotdown
+	sigChan := make(chan os.Signal)
+	//creo un chanel
+	signal.Notify(sigChan, os.Interrupt)
+	signal.Notify(sigChan, os.Kill)
+	//il chanel verra notificato ogni volta che avviene un interruzione o un kill
+	sig := <-sigChan
+	l.Println("received terminates, graceful shotdown", sig)
+	tc, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	s.Shutdown(tc)
 }
-
-/*
-what is a handle func ?
-its a convenience function on http package
-what handlefunc does is register a function to a path in the default serveMux.
-the default servemux is an http handler and everything related to server in go
-is an http handler
-
-praticamente le funzione vengono legate a dei path e
-in questo modo quando arrivano le chiamate al server il serveMux determina quale funzione deve
-essere eseguita.
-*/
