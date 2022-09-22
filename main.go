@@ -13,10 +13,10 @@ import (
 func main() {
 	// we need to create a reference to our hello handler
 	l := log.New(os.Stdout, "product-api", log.LstdFlags)
-	hh := handlers.NewHello(l)
+	ph := handlers.NewProducts(l)
 	// now we need to register the handler to the serveMux
 	sm := http.NewServeMux()
-	sm.Handle("/", hh)
+	sm.Handle("/", ph)
 	//* e dato che non vogliamo usare il defaultServeMux allora
 	//* dobbiamo specificare che vogliamo usare sm
 	// http.ListenAndServe(":9090", sm)
